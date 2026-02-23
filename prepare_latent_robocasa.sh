@@ -7,6 +7,8 @@
 #SBATCH --time=12:00:00
 #SBATCH --partition=b200-mig45
 
+ml load cuda/12.8
+
 eval "$(conda shell.bash hook)"
 conda activate vpp
 
