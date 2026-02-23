@@ -28,6 +28,7 @@ Each JSON roughly matches the schema from `step1_prepare_latent.py`:
 import os
 import json
 from pathlib import Path
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -37,17 +38,10 @@ import mediapy
 from rich import print
 from tqdm import tqdm
 
-
-DATA_ROOT = Path(
-    "data/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot"
-)
-OUTPUT_ROOT = Path("data/OpenCabinet")
-
 # Camera order: 3 views, similar于 xbot 的多机位
 CAM_KEYS = [
     "observation.images.robot0_agentview_right",
     "observation.images.robot0_agentview_left",
-    "observation.images.robot0_eye_in_hand",
 ]
 
 # 不论原始轨迹多长，uniform sample 到固定帧数
@@ -57,7 +51,6 @@ NUM_FRAMES = 49
 NUM_VAL_SAMPLES = 5
 VAL_SPLIT_SEED = 42
 
-# VAE 路径，和 xbot 脚本保持一致（按需修改）
 VAE_PATH = "stabilityai/stable-video-diffusion-img2vid"
 
 
@@ -117,12 +110,25 @@ def encode_video_to_latent(vae, frames: np.ndarray, batch_size: int = 64) -> tor
     return torch.cat(latents, dim=0)
 
 
-def main():
-    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+def main(task_name: str):
+    # 在 data_raw/{task_name} 下自动搜索唯一的 lerobot 子目录
+    task_root = Path("data_raw") / task_name
+    candidates = list(task_root.glob("**/lerobot"))
+    if not candidates:
+        raise FileNotFoundError(f"No 'lerobot' directory found under {task_root}")
+    if len(candidates) > 1:
+        raise RuntimeError(
+            f"Found multiple 'lerobot' directories under {task_root}: {candidates}. "
+            "Please keep only one or refine this script."
+        )
+    data_root = candidates[0]
+    # 输出到 data/{task_name}
+    output_root = Path("data") / task_name
+    output_root.mkdir(parents=True, exist_ok=True)
 
-    parquet_root = DATA_ROOT / "data"
-    video_root = DATA_ROOT / "videos"
-    meta_dir = DATA_ROOT / "meta"
+    parquet_root = data_root / "data"
+    video_root = data_root / "videos"
+    meta_dir = data_root / "meta"
 
     # 按 episode_index 加载 text（meta/episodes.jsonl）
     episode_texts = load_episode_texts(meta_dir)
@@ -192,26 +198,24 @@ def main():
         chunk_name = parquet_path.parent.name  # e.g. chunk-000
         episode_stem = parquet_path.stem  # e.g. episode_000000
 
-        # 准备输出目录
+        # 准备输出目录（相对于 data/{task_name}）
         latent_episode_dir = (
-            OUTPUT_ROOT / "latent_videos" / data_type / str(anno_ind)
+            output_root / "latent_videos" / data_type / str(anno_ind)
         )
         latent_episode_dir.mkdir(parents=True, exist_ok=True)
 
-        ann_dir = OUTPUT_ROOT / "annotations" / data_type
+        ann_dir = output_root / "annotations" / data_type
         ann_dir.mkdir(parents=True, exist_ok=True)
 
         videos_info = []
         latent_info = []
 
         for cam_id, cam_key in enumerate(CAM_KEYS):
-            # 原始视频相对路径（相对于 OUTPUT_ROOT）
-            # 通过 .. 返回到 data/v1.0 路径
+            # 原始视频相对路径（相对于 data/{task_name}）
+            # 通过 data_root / "videos" 相对于 output_root 计算
+            rel_videos_root = os.path.relpath(data_root / "videos", output_root)
             video_rel_path = (
-                Path("../v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot/videos")
-                / chunk_name
-                / cam_key
-                / f"{episode_stem}.mp4"
+                Path(rel_videos_root) / chunk_name / cam_key / f"{episode_stem}.mp4"
             )
             videos_info.append({"video_path": str(video_rel_path)})
 
@@ -276,5 +280,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--task_name",
+        type=str,
+        default="OpenCabinet",
+        help="Task name, used to resolve data_raw/{task_name}/.../lerobot and data/{task_name}",
+    )
+    args = parser.parse_args()
+    main(task_name=args.task_name)
 
