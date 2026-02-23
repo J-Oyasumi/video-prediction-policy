@@ -138,3 +138,5 @@ output
 wandb
 logs
 video_output
+
+data
