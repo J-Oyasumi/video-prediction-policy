@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 #SBATCH -J vpp_prepare_latent
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
