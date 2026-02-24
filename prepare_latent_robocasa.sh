@@ -21,11 +21,38 @@ tasks=(
     "PickPlaceStoveToCounter"
     "SlideDishwasherRack"
     "CloseCabinet"
-    "OpenCabinet"
     "PickPlaceCabinetToCounter"
     "PickPlaceCounterToSink"
     "PickPlaceToasterToCounter"
 )
+
+# target tasks
+target_tasks=(
+    "OpenCabinet" 
+    "CloseBlenderLid"
+    "CloseDrawer" #
+    "OpenDrawer"
+    "PickPlaceCounterToCabinet"
+    "PickPlaceStoveToCounter" #
+    "SlideDishwasherRack"
+    "CloseCabinet" #
+    "PickPlaceCabinetToCounter" #
+    "PickPlaceCounterToSink" #
+    "PickPlaceToasterToCounter"
+
+    "CloseFridge" #
+    "CloseToasterOvenDoor"
+    "CoffeeSetupMug"
+    "OpenStandMixerHead" #
+    "PickPlaceCounterToStove" # small std
+    "PickPlaceDrawerToCounter" # 
+    "PickPlaceSinkToCounter"
+    "TurnOffStove"
+    "TurnOnElectricKettle"
+    "TurnOnMicrowave"
+    "TurnOnSinkFaucet"
+)
+
 
 for task in ${tasks[@]}; do
     python prepare_latent_robocasa.py --task_name $task

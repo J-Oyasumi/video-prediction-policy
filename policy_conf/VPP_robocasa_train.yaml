@@ -1,0 +1,139 @@
+# RoboCasa action policy training. Single-arm 12-dim: xyz(3) + rot(4) + hand(5).
+# Set state_01/99, action_01/99 from your data percentiles (12 values each).
+dataset_args:
+  ################# dataset args #################
+  data_json_path: './data/annotation_all'
+  data_root_path: "./data"
+  project_dir: 'RoboCasa'
+  results_dir: "outputs/action_head"
+  ################## action args ################## 
+  sequence_interval: 2
+  num_frames: ${act_seq_len}
+  # 12-dim single-arm: replace with 1st/99th percentile from your states and actions
+  state_01: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+  state_99: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  action_01: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+  action_99: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+  use_depth: False
+  pre_encode: True
+  ################## dataloader args ############
+  batch_size: ${batch_size}
+  test_batch_size: ${batch_size}
+  shuffle: True
+  num_workers: 8
+
+root_data_dir: /storage/data/task_ABC_D
+lang_folder: lang_clip_resnet50
+clip_lang_model_name: ViT-B/32
+
+log_dir: ./logs/text_robocasa
+uuid: test_robocasa
+slurm: false
+devices: 1  # override via CLI for multi-GPU, e.g. devices=2
+min_window_size: 21
+max_window_size: 50
+future_range: 29
+seed: 242
+device: 'cuda'
+batch_size: 18
+goal_window_size: 1
+multistep: ${act_seq_len}
+p_last_state: 0
+max_epochs: 500
+log_every: 50
+rollout_lh_skip_epochs: 290
+window_sampling_strategy: 'geometric'
+num_workers: 12
+img_gen_frame_diff: 3
+benchmark_name: robocasa
+use_ckpt_path: false
+# set use_ckpt_path: true and ckpt_path to your checkpoint to resume
+ckpt_path: ""
+act_seq_len: 8
+obs_seq_len: 1
+
+model:
+  _target_: policy_models.VPP_policy_robocasa.VPP_Policy
+  _recursive_: false
+  latent_dim: 384
+  multistep: 10
+  sampler_type: 'ddim'
+  num_sampling_steps: 10
+  sigma_data: 0.5
+  sigma_min: 0.001
+  sigma_max: 80
+  noise_scheduler: 'exponential'
+  sigma_sample_density_type: 'loglogistic'
+  use_lr_scheduler: true
+  act_window_size: ${act_seq_len}
+  obs_seq_len: ${obs_seq_len}
+  action_dim: 12
+  proprio_dim: 16
+  action_seq_len: ${act_seq_len}
+  use_text_not_embedding: True
+  seed: ${seed}
+  Former_depth: 6
+  Former_heads: 8
+  Former_dim_head: 64
+  Former_num_time_embeds: 16
+  num_latents: 224
+  # path to your SVD (video VAE) checkpoint used for encoding; must match train_robocasa_svd output
+  pretrained_model_path: ./output/svd/robocasa/checkpoint-latest
+  use_position_encoding: False
+  max_length: 24
+  use_3d_Former: True
+  timestep: 20
+  extract_layer_idx: 1
+  device: ''
+  optimizer:
+    _target_: torch.optim.AdamW
+    transformer_weight_decay: 0.05
+    obs_encoder_weight_decay: 0.05
+    learning_rate: 1e-4
+    betas: [ 0.9, 0.9 ]
+  lr_scheduler:
+    lr_scheduler:
+      init_lr: 1e-4  # This is the peak or maximum learning rate
+      init_lr_scale: 0.1  # This is the ratio of initial learning rate to peak learning rate
+      final_lr_scale: 1e-6  # This is the ratio of final learning rate to peak learning rate
+      total_steps: 50000  # Example total steps, adjust as needed
+      phase_ratio: "(0.02, 0.08, 0.9)"
+      lr: 1e-4
+
+trainer:
+  gpus: ${devices}
+  precision: 16
+  max_epochs: ${max_epochs}
+  sync_batchnorm: false
+  accelerator: auto
+  limit_train_batches: 3000
+  limit_val_batches: 4
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  name: logger
+  group: models
+  log_model: false
+  project: ${benchmark_name} # calvin_vision
+  #entity: bennoq
+  id: ???
+
+
+hydra:
+  run:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - log_dir
+          - datamodule.root_data_dir
+          - trainer.gpus
+          - datamodule.num_workers
+          - trainer.limit_train_batches
+          - trainer.limit_val_batches

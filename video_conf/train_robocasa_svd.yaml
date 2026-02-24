@@ -15,14 +15,14 @@ train_args:
   use_img_cond: False
 
   ############ dataset args###############
-  annotation_name: 'annotation' # annotation dirname under dataset_dir path
+  annotation_name: 'annotations' # annotation dirname under dataset_dir path
   dataset_dir: "data"
 
   # dataset: 'sthv2+bridge+rt1+calvin'
   # prob: [0.4,0.2,0.2,0.2]
 
-  dataset: 'OpenCabinet+CloseBlenderLid+CloseDrawer+OpenDrawer+PickPlaceCounterToCabinet+PickPlaceStoveToCounter+SlideDishwasherRack+CloseCabinet+OpenCabinet+PickPlaceCabinetToCounter+PickPlaceCounterToSink+PickPlaceToasterToCounter'
-  prob: [0.09,0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08]
+  dataset: 'OpenCabinet+CloseBlenderLid+CloseDrawer+OpenDrawer+PickPlaceCounterToCabinet+PickPlaceStoveToCounter+SlideDishwasherRack+CloseCabinet+PickPlaceCabinetToCounter+PickPlaceCounterToSink+PickPlaceToasterToCounter'
+  prob: [0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08]
 
   tie_weight: True
   normalize: True
@@ -32,7 +32,7 @@ train_args:
   sequence_length: 16
   only_one_clip: True
   ########### train args################
-  log_every: 100
+  log_every: 10
   global_seed: 12345
   do_evaluate: False
   evaluate_checkpoint: False
@@ -188,7 +188,7 @@ extra_text_encoder_params: null
   #adam_weight_decay: 0.2
 
 # How many batches to train. Not to be confused with video frames.
-train_batch_size: 32
+train_batch_size: 20
 # Maximum number of train steps. Model is saved after training.
 max_train_steps: 10000
 

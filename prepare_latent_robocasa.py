@@ -38,7 +38,7 @@ import mediapy
 from rich import print
 from tqdm import tqdm
 
-# Camera order: 3 views, similar于 xbot 的多机位
+
 CAM_KEYS = [
     "observation.images.robot0_agentview_right",
     "observation.images.robot0_agentview_left",
@@ -112,7 +112,7 @@ def encode_video_to_latent(vae, frames: np.ndarray, batch_size: int = 64) -> tor
 
 def main(task_name: str):
     # 在 data_raw/{task_name} 下自动搜索唯一的 lerobot 子目录
-    task_root = Path("data_raw") / task_name
+    task_root = Path("data_raw/v1.0/pretrain/atomic") / task_name
     candidates = list(task_root.glob("**/lerobot"))
     if not candidates:
         raise FileNotFoundError(f"No 'lerobot' directory found under {task_root}")
@@ -236,8 +236,8 @@ def main(task_name: str):
             frames = frames[frame_indices]
 
             # 编码为 latent
-            latent = encode_video_to_latent(vae, frames)
-            torch.save(latent, latent_episode_dir / f"{cam_id}.pt")
+            # latent = encode_video_to_latent(vae, frames)
+            # torch.save(latent, latent_episode_dir / f"{cam_id}.pt")
 
             latent_rel_path = (
                 Path("latent_videos")
