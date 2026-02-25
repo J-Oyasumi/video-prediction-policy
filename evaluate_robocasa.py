@@ -36,7 +36,7 @@ import numpy as np
 from pathlib import Path
 import robosuite
 import robocasa
-import robocasa.utils.lerobot_utils as LU
+import robocasa.utils.lerobot_utils as LU, get_episode_actions
 from robocasa.scripts.dataset_scripts.playback_dataset import reset_to
 import imageio as iio
 from rich import print
@@ -186,6 +186,25 @@ def main(cfg):
         reset_to(env, initial_state)
         video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{distribution}_{episode_id}.mp4", fps=20, codec="libx264")
         
+        if cfg.replay:
+            print("Replay Ground truth actions")
+            gt_actions = get_episode_actions(dataset_dir, episode_id)
+            print("Ground truth actions Shape:", gt_actions.shape)
+            for action in tqdm(gt_actions, desc="Replaying Ground truth actions"):
+                for _ in range(10):
+                    _, _, _, _, info = env.step(action)
+                    frame = []
+                    for camera in CAMERAS:
+                        image = env.sim.render(
+                            height=480, width=480, camera_name=camera
+                        )[::-1]
+                        frame.append(image)
+                    frame = np.concatenate(frame, axis=1)
+                    video_writer.append_data(frame)
+            video_writer.close()
+            del video_writer
+            return
+        
         # Start Rollout
         lang = LU.get_episode_meta(dataset_dir, episode_id)['lang']
         assert lang is not None
@@ -193,7 +212,7 @@ def main(cfg):
         success = False
         max_inferences = 10
         
-        for i in tqdm(range(max_inferences), desc="Infering"):
+        for _ in tqdm(range(max_inferences), desc="Infering"):
             inputs = prepare_inputs(env, lang, vae)
             with torch.no_grad():
                 actions = model.eval_forward(**inputs).squeeze(0).cpu().numpy() # (action_window_size, action_dim)
@@ -201,14 +220,14 @@ def main(cfg):
                     action = denormalize(action, ACTION_01, ACTION_99)
                     action = convert_action(action)
                     # repeat 10 times
-                    for i in range(10):
+                    for _ in range(10):
                         _, _, _, _, info = env.step(action)
                     
                     # save frame
                     frame = []
                     for camera in CAMERAS:
                         image = env.sim.render(
-                            height=480, width=832, camera_name=camera
+                            height=480, width=480, camera_name=camera
                         )[::-1]
                         frame.append(image)
                     frame = np.concatenate(frame, axis=1)
@@ -218,6 +237,9 @@ def main(cfg):
                     if info['success']:
                         success = True
                         break
+                
+                if success:
+                    break
         
         if success:
             print(f"[bold green]Success! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
@@ -281,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument("--clip_model_path", type=str, required=True)
     parser.add_argument("--json_path", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--replay", action="store_true")
     args = parser.parse_args()
     
     os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
@@ -297,5 +320,5 @@ if __name__ == "__main__":
     cfg.model.text_encoder_path = args.clip_model_path
     cfg.json_path = args.json_path
     cfg.output_dir = args.output_dir
-    
+    cfg.replay = args.replay
     main(cfg)
