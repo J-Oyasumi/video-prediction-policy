@@ -266,7 +266,7 @@ if __name__ == "__main__":
     from hydra import compose, initialize
     from omegaconf import OmegaConf
     
-    with initialize(config_path="../policy_conf", job_name="robocasa_evaluate.yaml"):
+    with initialize(config_path="./policy_conf", job_name="robocasa_evaluate.yaml"):
         cfg = compose(config_name="robocasa_evaluate.yaml")
     cfg.model.pretrained_model_path = args.video_model_path
     cfg.action_model_path = args.action_model_path

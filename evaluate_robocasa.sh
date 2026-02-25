@@ -11,8 +11,8 @@ eval "$(conda shell.bash hook)"
 conda activate vpp
 
 python evaluate_robocasa.py \
-  --video_model_path /home/disk2/gyj/hyc_ckpt/svd_2camera/checkpoint-100000 \
-  --action_model_path /home/disk2/gyj/hyccode/Video-Prediction-Policy/checkpoint/alllayer1 \
-  --clip_model_path /home/disk2/gyj/hyc_ckpt/llm/clip-vit-base-patch32 \
-  --json_path data/annotation_all/train_all.json \
-  --output_dir results/robocasa_evaluation
+  --video_model_path outputs/svd/train_2026-02-23T06-50-24/checkpoint-33000 \
+  --action_model_path logs/text_robocasa/runs/2026-02-24/10-50-41/robocasa/checkpoints/0034506_0.149465.pt \
+  --clip_model_path weights/clip-vit-base-patch32 \
+  --json_path outputs/eval/OpenCabinet/data.json \
+  --output_dir outputs/eval/OpenCabinet
