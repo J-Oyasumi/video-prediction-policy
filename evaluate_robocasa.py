@@ -73,7 +73,7 @@ def make_env(dataset_dir):
     return gym.make(f"robocasa/{env_name}", split="pretrain")
 
 
-def build_action(action):
+def convert_action(action):
     action_dict = {
         "action.base_motion": action[:4],
         "action.control_mode": action[4:5],
@@ -199,8 +199,10 @@ def main(cfg):
                 actions = model.eval_forward(**inputs).squeeze(0).cpu().numpy() # (action_window_size, action_dim)
                 for action in actions:
                     action = denormalize(action, ACTION_01, ACTION_99)
-                    action = build_action(action)
-                    _, _, _, _, info = env.step(action)
+                    action = convert_action(action)
+                    # repeat 10 times
+                    for i in range(10):
+                        _, _, _, _, info = env.step(action)
                     
                     # save frame
                     frame = []
