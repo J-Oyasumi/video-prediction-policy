@@ -111,7 +111,7 @@ def encode_video_to_latent(vae, frames: np.ndarray, batch_size: int = 64) -> tor
 
 
 def main(task_name: str):
-    # 在 data_raw/{task_name} 下自动搜索唯一的 lerobot 子目录
+    # 自动搜索唯一的 lerobot 子目录
     task_root = Path("data_raw/v1.0/pretrain/atomic") / task_name
     candidates = list(task_root.glob("**/lerobot"))
     if not candidates:

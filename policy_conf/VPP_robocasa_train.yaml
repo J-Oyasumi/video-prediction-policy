@@ -2,18 +2,18 @@
 # Set state_01/99, action_01/99 from your data percentiles (12 values each).
 dataset_args:
   ################# dataset args #################
-  data_json_path: './data/annotation_all'
-  data_root_path: "./data"
-  project_dir: 'RoboCasa'
-  results_dir: "outputs/action_head"
+  data_json_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/data/annotation_all
+  data_root_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/data
+  project_dir: RoboCasa
+  results_dir: ./outputs/action_head
   ################## action args ################## 
   sequence_interval: 2
   num_frames: ${act_seq_len}
   # 12-dim single-arm: replace with 1st/99th percentile from your states and actions
-  state_01: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
-  state_99: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-  action_01: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
-  action_99: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  state_01: [-0.8471073344983073, -5.545685094005817, 0.6999459578623527, 0.0, 0.0, -1.0, 5.319110687196371e-07, -0.18826553858304707, -0.6094472837410796, -0.14869284647573502, -0.997725191116333, -0.629423668384552, -0.7791548717021942, 0.0009995199600234628, -3.0091797774880364e-05, -0.04055586245844699]
+  state_99: [6.711419918072105, -0.3305895016132213, 0.703836780923211, 0.0, 0.0, 1.0, 1.0, 0.6232723876414562, 0.6056495006911888, 0.8914906390281283, 0.9969765591621399, 0.764727573394776, 0.7703708636760713, 0.7068612802028656, 0.04056435594193672, 3.874594788977785e-05]
+  action_01: [0.0, 0.0, 0.0, 0.0, -1.0, -1.0, -1.0, -1.0, -0.32857142857142857, -0.4514285714285714, -0.38, -1.0]
+  action_99: [0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, 1.0, 0.3514285714285714, 0.44857142857142857, 0.3857142857142858, 1.0]
 
   use_depth: False
   pre_encode: True
@@ -36,7 +36,7 @@ max_window_size: 50
 future_range: 29
 seed: 242
 device: 'cuda'
-batch_size: 18
+batch_size: 64
 goal_window_size: 1
 multistep: ${act_seq_len}
 p_last_state: 0
@@ -79,9 +79,8 @@ model:
   Former_num_time_embeds: 16
   num_latents: 224
   # path to your SVD (video VAE) checkpoint used for encoding; must match train_robocasa_svd output
-  pretrained_model_path: ./output/svd/robocasa/checkpoint-latest
-  use_position_encoding: False
-  max_length: 24
+  pretrained_model_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/outputs/svd/train_2026-02-23T06-50-24/checkpoint-33000
+  text_encoder_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/weights/clip-vit-base-patch32
   use_3d_Former: True
   timestep: 20
   extract_layer_idx: 1

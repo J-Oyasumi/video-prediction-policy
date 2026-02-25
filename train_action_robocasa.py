@@ -233,7 +233,9 @@ def train(cfg: DictConfig) -> None:
 if __name__ == "__main__":
     # os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
     # Set CUDA device IDs
-
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
     # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5"
