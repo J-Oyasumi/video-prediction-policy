@@ -35,9 +35,10 @@ from argparse import ArgumentParser
 import numpy as np
 from pathlib import Path
 import robosuite
+import robocasa
 import robocasa.utils.lerobot_utils as LU
 from robocasa.scripts.dataset_scripts.playback_dataset import reset_to
-import imageio.v3 as iio
+import imageio as iio
 from rich import print
 from tqdm import tqdm
 import torch
@@ -45,6 +46,7 @@ import os
 from hydra.utils import instantiate
 from pytorch_lightning import seed_everything
 from diffusers.models import AutoencoderKLTemporalDecoder
+import gymnasium as gym
 
 
 CAMERAS = ["robot0_agentview_left", "robot0_agentview_center", "robot0_agentview_right"]
@@ -58,35 +60,53 @@ ACTION_99 = np.array([0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, 1.0, 0.351428571428571
 def make_env(dataset_dir):
     env_meta = LU.get_env_metadata(dataset_dir)
     env_kwargs = env_meta["env_kwargs"]
-    env_kwargs["env_name"] = env_meta["env_name"]
+    env_name = env_meta["env_name"]
+    env_kwargs.pop("env_name", None)
+    env_kwargs.pop("controller_configs", None)
+    # env_kwargs["env_name"] = env_name
     env_kwargs["has_renderer"] = False
     env_kwargs["renderer"] = "mjviewer"
     env_kwargs["has_offscreen_renderer"] = True
     env_kwargs["use_camera_obs"] = False
-    return robosuite.make(**env_kwargs)
+    env_kwargs["split"] = "pretrain"
 
+    return gym.make(f"robocasa/{env_name}", split="pretrain")
+
+
+def build_action(action):
+    action_dict = {
+        "action.base_motion": action[:4],
+        "action.control_mode": action[4:5],
+        "action.end_effector_position": action[5:8],
+        "action.end_effector_rotation": action[8:11],
+        "action.gripper_close": action[11:12],
+    }
+    return action_dict
 
 
 def prepare_inputs(env, lang, vae):
     # zero action to get initial observation
     zero_action = {
-        "action.gripper_close": np.array([0.0], dtype=np.float32),      # 闭合
-        "action.end_effector_position": np.array([0.0, 0.0, 0.0], np.float32),
-        "action.end_effector_rotation": np.array([0.0, 0.0, 0.0], np.float32),
         "action.base_motion": np.array([0.0, 0.0, 0.0, 0.0], np.float32),
         "action.control_mode": np.array([1.0], dtype=np.float32),
+        "action.end_effector_position": np.array([0.0, 0.0, 0.0], np.float32),
+        "action.end_effector_rotation": np.array([0.0, 0.0, 0.0], np.float32),
+        "action.gripper_close": np.array([1.0], dtype=np.float32),
     }
-    obs, _, _, _ = env.step(zero_action)
+    # zero_action = np.concatenate([v for k, v in zero_action.items()], axis=0)
+    obs, _, _, _, _ = env.step(zero_action)
     
     image = obs["video.robot0_agentview_left"]
     # encode image to latent
     image = torch.from_numpy(image).unsqueeze(0).permute(0, 3, 1, 2).float().to("cuda") / 255.0 * 2 - 1
     image = torch.nn.functional.interpolate(image, size=(256, 256), mode='bilinear', align_corners=False)
     latent = vae.encode(image).latent_dist.sample().mul_(vae.config.scaling_factor)
+    latent = latent.unsqueeze(0)
     
     state = np.concatenate([obs['state.base_position'], obs['state.base_rotation'], obs['state.end_effector_position_relative'], obs['state.end_effector_rotation_relative'], obs['state.gripper_qpos']], axis=0)
-    state = state.unsqueeze(0)
+    state = state[None, None, ...]
     state = normalize(state, STATE_01, STATE_99)
+    state = torch.from_numpy(state)
     
     inputs = dict(
         obs=dict(
@@ -117,10 +137,11 @@ def main(cfg):
     # Initialize Model
     torch.cuda.set_device(cfg.device)
     seed_everything(0, workers=True)
-    state_dict = torch.load(cfg.action_model_path, map_location='cpu')
+    state_dict = torch.load(cfg.action_model_path, map_location='cpu', weights_only=False)
     model = instantiate(cfg.model)
     model.load_state_dict(state_dict['model'],strict = True)
-    model.freeze()
+    for p in model.parameters():
+        p.requires_grad_ = False
     model = model.cuda(cfg.device)
     print(cfg.num_sampling_steps, cfg.sampler_type, cfg.multistep, cfg.sigma_min, cfg.sigma_max, cfg.noise_scheduler)
     model.num_sampling_steps = cfg.num_sampling_steps
@@ -143,7 +164,7 @@ def main(cfg):
         data = json.load(f)
     
     task_name = data[0]["task_name"]
-    dataset_dir = data[0]["dataset_dir"]
+    dataset_dir = Path(data[0]["dataset_dir"])
     episode_ids = [item["episode_id"] for item in data]
     distributions = [item["distribution"] for item in data]
     os.makedirs(f"{cfg.output_dir}/{task_name}", exist_ok=True)
@@ -158,12 +179,12 @@ def main(cfg):
     for episode_id, distribution in tqdm(zip(episode_ids, distributions), desc="Evaluating"):
         print(f"Evaluating episode {episode_id} of {task_name}")
         initial_state = dict(
-            states=LU.get_episode_states(dataset_dir, episode_id),
+            states=LU.get_episode_states(dataset_dir, episode_id)[0],
             model=LU.get_episode_model_xml(dataset_dir, episode_id),
             ep_meta=json.dumps(LU.get_episode_meta(dataset_dir, episode_id)),
         )
         reset_to(env, initial_state)
-        video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{episode_id}_{distribution}.mp4", fps=20)
+        video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{distribution}_{episode_id}.mp4", fps=20, codec="libx264")
         
         # Start Rollout
         lang = LU.get_episode_meta(dataset_dir, episode_id)['lang']
@@ -178,6 +199,7 @@ def main(cfg):
                 actions = model.eval_forward(**inputs).squeeze(0).cpu().numpy() # (action_window_size, action_dim)
                 for action in actions:
                     action = denormalize(action, ACTION_01, ACTION_99)
+                    action = build_action(action)
                     _, _, _, _, info = env.step(action)
                     
                     # save frame

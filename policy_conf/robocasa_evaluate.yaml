@@ -4,7 +4,7 @@ defaults:
   - datamodule: calvin
 
 model:
-  _target_: policy_models.VPP_policy.VPP_Policy
+  _target_: policy_models.VPP_policy_robocasa.VPP_Policy
   _recursive_: false
   latent_dim: 384
   multistep: 10
@@ -16,10 +16,11 @@ model:
   noise_scheduler: 'exponential'
   sigma_sample_density_type: 'loglogistic'
   use_lr_scheduler: true
-  act_window_size: 10
-  obs_seq_len: 1
-  action_dim: 7
-  action_seq_len: 10
+  act_window_size: ${act_seq_len}
+  obs_seq_len: ${obs_seq_len}
+  action_dim: 12
+  proprio_dim: 16
+  action_seq_len: ${act_seq_len}
   use_text_not_embedding: True
   seed: ${seed}
   Former_depth: 6
@@ -27,13 +28,13 @@ model:
   Former_dim_head: 64
   Former_num_time_embeds: 16
   num_latents: 224
-  text_encoder_path:
-  pretrained_model_path: /home/disk2/gyj/hyc_ckpt/svd_2camera/checkpoint-100000
-  use_Former: 3d
+  # path to your SVD (video VAE) checkpoint used for encoding; must match train_robocasa_svd output
+  pretrained_model_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/outputs/svd/train_2026-02-23T06-50-24/checkpoint-33000
+  text_encoder_path: /vast/home/h/hanjiang/workspace/baseline/video-prediction-policy/weights/clip-vit-base-patch32
+  use_3d_Former: True
   timestep: 20
-  use_all_layer: True
   extract_layer_idx: 1
-  use_position_encoding: False
+  device: 'cuda:0'
   optimizer:
     _target_: torch.optim.AdamW
     transformer_weight_decay: 0.05
@@ -80,7 +81,7 @@ sigma_max: 80
 noise_scheduler: exponential
 
 lang_folder: lang_annotations
-act_seq_len: 10
+act_seq_len: 8
 obs_seq_len: 1
 future_range: 29
 
