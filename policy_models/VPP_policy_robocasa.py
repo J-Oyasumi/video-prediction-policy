@@ -563,35 +563,22 @@ class VPP_Policy(nn.Module):#pl.LightningModule):
         language = goal["lang_text"]
         batch = rgb_static.shape[0]
 
-        if 'rgb_gripper2' not in obs["rgb_obs"]:
-            with torch.no_grad():
-                input_rgb = torch.cat([rgb_static, rgb_gripper], dim=0)
-                language = [language] + [language]
-                print("input_rgb_shape:", input_rgb.shape)
-                print("language_shape:", len(language))
-                perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                                                            self.extract_layer_idx)
-                # perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                #                                                self.extract_layer_idx, all_layer=self.use_all_layer,
-                #                                                step_time=1)
-            print("perceptual_features_shape:", perceptual_features.shape)
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
+        with torch.no_grad():
+            input_rgb = torch.cat([rgb_static, rgb_gripper], dim=0)
+            language = [language] + [language]
+            print("input_rgb_shape:", input_rgb.shape)
+            print("language_shape:", len(language))
+            perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
+                                                        self.extract_layer_idx)
+            # perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
+            #                                                self.extract_layer_idx, all_layer=self.use_all_layer,
+            #                                                step_time=1)
+        print("perceptual_features_shape:", perceptual_features.shape)
+        perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
+        perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
 
-            perceptual_features, gripper_feature = torch.split(perceptual_features, [batch, batch], dim=0)
-            perceptual_features = torch.cat([perceptual_features, gripper_feature], dim=2)
-        else:
-            with torch.no_grad():
-                input_rgb = torch.cat([rgb_static, rgb_gripper, rgb_gripper2], dim=0)
-                language = [language] + [language] + [language]
-                perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                                                            self.extract_layer_idx)
-
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
-
-            perceptual_features, gripper_feature1, gripper_feature2 = torch.split(perceptual_features, [batch, batch, batch], dim=0)
-            perceptual_features = torch.cat([perceptual_features, gripper_feature1, gripper_feature2], dim=2)
+        perceptual_features, gripper_feature = torch.split(perceptual_features, [batch, batch], dim=0)
+        perceptual_features = torch.cat([perceptual_features, gripper_feature], dim=2)
 
         perceptual_features = perceptual_features.to(torch.float32)
         perceptual_features = self.Video_Former(perceptual_features)

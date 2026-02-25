@@ -236,8 +236,8 @@ def main(task_name: str):
             frames = frames[frame_indices]
 
             # 编码为 latent
-            # latent = encode_video_to_latent(vae, frames)
-            # torch.save(latent, latent_episode_dir / f"{cam_id}.pt")
+            latent = encode_video_to_latent(vae, frames)
+            torch.save(latent, latent_episode_dir / f"{cam_id}.pt")
 
             latent_rel_path = (
                 Path("latent_videos")
