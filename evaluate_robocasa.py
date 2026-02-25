@@ -13,12 +13,14 @@ Expected Json Structure:
     {
         "task_name": "CloseBlenderLid",
         "dataset_dir": "data_raw/v1.0/pretrain/atomic/CloseBlenderLid/20250822/lerobot",
-        "episode_id": 18
+        "episode_id": 18,
+        "distribution": "train", # train, val, target (new scene)
     },
     {
         "task_name": "CloseBlenderLid",
         "dataset_dir": "data_raw/v1.0/pretrain/atomic/CloseBlenderLid/20250822/lerobot",
         "episode_id": 25
+        "distribution": "val",
     },
 ]
 
@@ -143,11 +145,17 @@ def main(cfg):
     task_name = data[0]["task_name"]
     dataset_dir = data[0]["dataset_dir"]
     episode_ids = [item["episode_id"] for item in data]
+    distributions = [item["distribution"] for item in data]
     os.makedirs(f"{cfg.output_dir}/{task_name}", exist_ok=True)
     
     env = make_env(dataset_dir)
+
+    # for saving per-episode results and distribution-wise statistics
+    episode_results = []
+    dist_counts = {}
+    dist_success = {}
     
-    for episode_id in tqdm(episode_ids, desc="Evaluating"):
+    for episode_id, distribution in tqdm(zip(episode_ids, distributions), desc="Evaluating"):
         print(f"Evaluating episode {episode_id} of {task_name}")
         initial_state = dict(
             states=LU.get_episode_states(dataset_dir, episode_id),
@@ -155,7 +163,7 @@ def main(cfg):
             ep_meta=json.dumps(LU.get_episode_meta(dataset_dir, episode_id)),
         )
         reset_to(env, initial_state)
-        video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{episode_id}.mp4", fps=20)
+        video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{episode_id}_{distribution}.mp4", fps=20)
         
         # Start Rollout
         lang = LU.get_episode_meta(dataset_dir, episode_id)['lang']
@@ -164,7 +172,7 @@ def main(cfg):
         success = False
         max_inferences = 10
         
-        for infer in tqdm(range(max_inferences), desc="Infering"):
+        for i in tqdm(range(max_inferences), desc="Infering"):
             inputs = prepare_inputs(env, lang, vae)
             with torch.no_grad():
                 actions = model.eval_forward(**inputs).squeeze(0).cpu().numpy() # (action_window_size, action_dim)
@@ -188,11 +196,59 @@ def main(cfg):
                         break
         
         if success:
-            print(f"[bold green]Success[/bold green]")
+            print(f"[bold green]Success! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
         else:
-            print(f"[bold red]Fail[/bold red]")
+            print(f"[bold red]Fail! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold red]")
+
+        # record per-episode result
+        episode_results.append(
+            {
+                "episode_id": int(episode_id),
+                "distribution": distribution,
+                "success": bool(success),
+            }
+        )
+        # update stats
+        dist_counts[distribution] = dist_counts.get(distribution, 0) + 1
+        if success:
+            dist_success[distribution] = dist_success.get(distribution, 0) + 1
         
+        video_writer.close()
+        del video_writer
         
+    env.close()
+    del env
+
+    # compute summary statistics per distribution and overall
+    summary = {}
+    total_episodes = len(episode_results)
+    total_success = sum(1 for r in episode_results if r["success"])
+    summary["overall"] = {
+        "total": total_episodes,
+        "success": total_success,
+        "success_rate": float(total_success) / total_episodes if total_episodes > 0 else 0.0,
+    }
+
+    by_distribution = {}
+    for dist, cnt in dist_counts.items():
+        succ = dist_success.get(dist, 0)
+        by_distribution[dist] = {
+            "total": cnt,
+            "success": succ,
+            "success_rate": float(succ) / cnt if cnt > 0 else 0.0,
+        }
+    summary["by_distribution"] = by_distribution
+
+    result = {
+        "task_name": task_name,
+        "results": episode_results,
+        "summary": summary,
+    }
+
+    result_path = Path(cfg.output_dir) / task_name / "result.json"
+    with result_path.open("w") as f:
+        json.dump(result, f, indent=2)
+    print(f"[bold green]Saved evaluation results to {result_path}[/bold green]")
 
 if __name__ == "__main__":
     parser = ArgumentParser()
