@@ -13,43 +13,15 @@ eval "$(conda shell.bash hook)"
 conda activate vpp
 
 tasks=(
-    "OpenCabinet" 
     "CloseBlenderLid"
-    "CloseDrawer"
-    "OpenDrawer"
-    "PickPlaceCounterToCabinet"
-    "PickPlaceStoveToCounter"
-    "SlideDishwasherRack"
-    "CloseCabinet"
-    "PickPlaceCabinetToCounter"
-    "PickPlaceCounterToSink"
-    "PickPlaceToasterToCounter"
-)
-
-# target tasks
-target_tasks=(
-    "OpenCabinet" 
-    "CloseBlenderLid"
-    "CloseDrawer" #
-    "OpenDrawer"
-    "PickPlaceCounterToCabinet"
-    "PickPlaceStoveToCounter" #
-    "SlideDishwasherRack"
-    "CloseCabinet" #
-    "PickPlaceCabinetToCounter" #
-    "PickPlaceCounterToSink" #
-    "PickPlaceToasterToCounter"
-
-    "CloseFridge" #
     "CloseToasterOvenDoor"
-    "CoffeeSetupMug"
-    "OpenStandMixerHead" #
-    "PickPlaceCounterToStove" # small std
-    "PickPlaceDrawerToCounter" # 
+    "OpenCabinet"
+    "OpenDrawer"
+    "PickPlaceCounterToCabinet"
+    "PickPlaceCounterToStove"
     "PickPlaceSinkToCounter"
-    "TurnOffStove"
+    "SlideDishwasherRack"
     "TurnOnElectricKettle"
-    "TurnOnMicrowave"
     "TurnOnSinkFaucet"
 )
 

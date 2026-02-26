@@ -47,7 +47,9 @@ from hydra.utils import instantiate
 from pytorch_lightning import seed_everything
 from diffusers.models import AutoencoderKLTemporalDecoder
 import gymnasium as gym
-
+from scipy.interpolate import make_interp_spline
+from scipy.spatial.transform import Rotation as R
+from PIL import Image
 
 CAMERAS = ["robot0_agentview_left", "robot0_agentview_center", "robot0_agentview_right"]
 
@@ -70,7 +72,7 @@ def make_env(dataset_dir):
     env_kwargs["use_camera_obs"] = False
     env_kwargs["split"] = "pretrain"
 
-    return gym.make(f"robocasa/{env_name}", split="pretrain")
+    return gym.make(f"robocasa/{env_name}", split="pretrain",)
 
 
 def convert_action(action):
@@ -127,37 +129,106 @@ def denormalize(data, data_min, data_max):
     # from [-1, 1] to [min, max]
     return data * (data_max - data_min) / 2 + data_min
     
-    
+
 def normalize(data, data_min, data_max, clip_min=-1, clip_max=1, eps=1e-8):
     ndata = 2 * (data - data_min) / (data_max - data_min + eps) - 1
     return np.clip(ndata, clip_min, clip_max).astype(np.float32)
 
 
+
+def process_action(actions, mode="None", interpolate_mode="B-Spline"):
+    """
+    actions: (L, action_dim)
+    """
+    if mode == "None":
+        return actions
+    elif mode == "downsample":
+        L = 49
+        # unifomly sample 49 actions from actions
+        actions = actions[np.linspace(0, len(actions) - 1, L).astype(int)]
+        return actions
+    elif mode == "downsample_interpolate":
+        L = 49
+        # unifomly sample 49 actions from actions
+        actions = actions[np.linspace(0, len(actions) - 1, L).astype(int)]
+        if interpolate_mode == "B-Spline":
+            # B-Spline Interpolation
+            # 对原始整条轨迹进行 B-样条拟合，然后在新时间轴上采样 49 个点
+            x_original = np.arange(L)
+            spline = make_interp_spline(x_original, actions, k=3)
+            x_new = np.linspace(0, L - 1, L)
+            actions_interpolated = spline(x_new)
+            return actions_interpolated
+        elif interpolate_mode == "Linear":
+            return actions
+        else:
+            raise ValueError(f"Invalid interpolate mode: {interpolate_mode}")
+    elif mode == "downsample_repeat":
+        L = 49
+        # unifomly sample 49 actions from actions
+        actions = actions[np.linspace(0, len(actions) - 1, L).astype(int)]
+        actions = np.repeat(actions, 4, axis=1)
+        return actions
+    elif mode == "downsample_aggregate":
+        L = 49
+        # downsample to 49 actions by aggregating deltas between segment boundaries
+        # action structure: base_motion[0:4], control_mode[4:5], pos[5:8], rot[8:11], gripper[11:12]
+        # - position/rotation: delta representation -> sum/compose over segment
+        # - base_motion, control_mode, gripper_close: discrete -> take last value in segment
+        segment_boundaries = np.linspace(0, len(actions), L + 1).astype(int)
+        aggregated = []
+        last_discrete = None  # for empty segments
+        for i in range(L):
+            start_idx = segment_boundaries[i]
+            end_idx = segment_boundaries[i + 1]
+            segment_actions = actions[start_idx:end_idx]
+            # base_motion [0:4], control_mode [4:5], gripper [11:12]: discrete, take last
+            agg_action = np.zeros(12, dtype=np.float32)
+            agg_action[:4] = segment_actions[-1, :4]
+            agg_action[4:5] = segment_actions[-1, 4:5]
+            agg_action[11:12] = segment_actions[-1, 11:12]
+            last_discrete = np.concatenate([agg_action[:5], agg_action[11:12]])  # 6 elements
+            # position [5:8]: delta, sum
+            agg_action[5:8] = segment_actions[:, 5:8].sum(axis=0)
+            # rotation [8:11]: delta (axis-angle), compose via R1*R2*...
+            if len(segment_actions) == 1:
+                agg_action[8:11] = segment_actions[0, 8:11]
+            else:
+                r_combined = R.from_rotvec(segment_actions[0, 8:11])
+                for j in range(1, len(segment_actions)):
+                    r_combined = r_combined * R.from_rotvec(segment_actions[j, 8:11])
+                agg_action[8:11] = r_combined.as_rotvec()
+            aggregated.append(agg_action)
+        actions = np.array(aggregated)
+        return actions
+
+
 def main(cfg):
+    if not cfg.replay:
     # Initialize Model
-    torch.cuda.set_device(cfg.device)
-    seed_everything(0, workers=True)
-    state_dict = torch.load(cfg.action_model_path, map_location='cpu', weights_only=False)
-    model = instantiate(cfg.model)
-    model.load_state_dict(state_dict['model'],strict = True)
-    for p in model.parameters():
-        p.requires_grad_ = False
-    model = model.cuda(cfg.device)
-    print(cfg.num_sampling_steps, cfg.sampler_type, cfg.multistep, cfg.sigma_min, cfg.sigma_max, cfg.noise_scheduler)
-    model.num_sampling_steps = cfg.num_sampling_steps
-    model.sampler_type = cfg.sampler_type
-    model.multistep = cfg.multistep
-    if cfg.sigma_min is not None:
-        model.sigma_min = cfg.sigma_min
-    if cfg.sigma_max is not None:
-        model.sigma_max = cfg.sigma_max
-    if cfg.noise_scheduler is not None:
-        model.noise_scheduler = cfg.noise_scheduler
-    model.process_device()
-    model.eval()
+        torch.cuda.set_device(cfg.device)
+        seed_everything(0, workers=True)
+        state_dict = torch.load(cfg.action_model_path, map_location='cpu', weights_only=False)
+        model = instantiate(cfg.model)
+        model.load_state_dict(state_dict['model'],strict = True)
+        for p in model.parameters():
+            p.requires_grad_ = False
+        model = model.cuda(cfg.device)
+        print(cfg.num_sampling_steps, cfg.sampler_type, cfg.multistep, cfg.sigma_min, cfg.sigma_max, cfg.noise_scheduler)
+        model.num_sampling_steps = cfg.num_sampling_steps
+        model.sampler_type = cfg.sampler_type
+        model.multistep = cfg.multistep
+        if cfg.sigma_min is not None:
+            model.sigma_min = cfg.sigma_min
+        if cfg.sigma_max is not None:
+            model.sigma_max = cfg.sigma_max
+        if cfg.noise_scheduler is not None:
+            model.noise_scheduler = cfg.noise_scheduler
+        model.process_device()
+        model.eval()
     
-    # Initialize VAE
-    vae = AutoencoderKLTemporalDecoder.from_pretrained("stabilityai/stable-video-diffusion-img2vid", subfolder="vae").to("cuda")
+        # Initialize VAE
+        vae = AutoencoderKLTemporalDecoder.from_pretrained("stabilityai/stable-video-diffusion-img2vid", subfolder="vae").to("cuda")
     
     # Initialize Environment
     with open(cfg.json_path, "r") as f:
@@ -167,7 +238,7 @@ def main(cfg):
     dataset_dir = Path(data[0]["dataset_dir"])
     episode_ids = [item["episode_id"] for item in data]
     distributions = [item["distribution"] for item in data]
-    os.makedirs(f"{cfg.output_dir}/{task_name}", exist_ok=True)
+    os.makedirs(cfg.output_dir, exist_ok=True)
     
     env = make_env(dataset_dir)
 
@@ -184,7 +255,7 @@ def main(cfg):
             ep_meta=json.dumps(LU.get_episode_meta(dataset_dir, episode_id)),
         )
         reset_to(env, initial_state)
-        video_writer = iio.get_writer(f"{cfg.output_dir}/{task_name}/{distribution}_{episode_id}.mp4", fps=20, codec="libx264")
+        video_writer = iio.get_writer(f"{cfg.output_dir}/{distribution}_{episode_id}.mp4", fps=20, codec="libx264")
         
         if cfg.replay:
             print("Replay Ground truth actions")
@@ -192,13 +263,14 @@ def main(cfg):
             gt_actions = LU.reorder_hdf5_action(gt_actions, LU.get_modality_dict(dataset_dir))
             print("Ground truth actions Shape:", gt_actions.shape)
             success = False
+            gt_actions = process_action(gt_actions, mode=cfg.process_action_mode, interpolate_mode=cfg.process_action_interpolate_mode)
             for action in tqdm(gt_actions, desc="Replaying Ground truth actions"):
                 action = convert_action(action)
-                _, _, _, _, info = env.step(action)
+                obs, _, _, _, info = env.step(action)
                 frame = []
                 for camera in CAMERAS:
                     image = env.sim.render(
-                        height=480, width=480, camera_name=camera
+                        height=480, width=832, camera_name=camera
                     )[::-1]
                     frame.append(image)
                 frame = np.concatenate(frame, axis=1)
@@ -209,7 +281,7 @@ def main(cfg):
             if success:
                 print(f"[bold green]Success! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
             else:
-                print(f"[bold red]Fail! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
+                print(f"[bold red]Fail! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold red]")
             video_writer.close()
             del video_writer
             continue
@@ -300,7 +372,7 @@ def main(cfg):
         "summary": summary,
     }
 
-    result_path = Path(cfg.output_dir) / task_name / "result.json"
+    result_path = Path(cfg.output_dir) / "result.json"
     with result_path.open("w") as f:
         json.dump(result, f, indent=2)
     print(f"[bold green]Saved evaluation results to {result_path}[/bold green]")
@@ -313,6 +385,8 @@ if __name__ == "__main__":
     parser.add_argument("--json_path", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--replay", action="store_true")
+    parser.add_argument("--process_action_mode", type=str, default="None")
+    parser.add_argument("--process_action_interpolate_mode", type=str, default="B-Spline")
     args = parser.parse_args()
     
     os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
@@ -330,4 +404,6 @@ if __name__ == "__main__":
     cfg.json_path = args.json_path
     cfg.output_dir = args.output_dir
     cfg.replay = args.replay
+    cfg.process_action_mode = args.process_action_mode
+    cfg.process_action_interpolate_mode = args.process_action_interpolate_mode
     main(cfg)

@@ -18,7 +18,7 @@ Each JSON roughly matches the schema from `step1_prepare_latent.py`:
         "texts": [...],             # 从 meta/episodes.jsonl 按 episode_index 读取 tasks[0]
         "videos": [...],            # relative paths back to original mp4s
         "episode_id": int,
-        "video_length": int,        # 固定为 NUM_FRAMES（49）
+        "video_length": int,        # 原始全长，不做时间下采样
         "latent_videos": [...],     # paths to encoded latents
         "states": [...],            # downsampled observation.state
         "actions": [...],           # downsampled action
@@ -43,9 +43,6 @@ CAM_KEYS = [
     "observation.images.robot0_agentview_right",
     "observation.images.robot0_agentview_left",
 ]
-
-# 不论原始轨迹多长，uniform sample 到固定帧数
-NUM_FRAMES = 49
 
 # 固定随机选 5 个 episode 作为 val，其余为 train（可复现）
 NUM_VAL_SAMPLES = 5
@@ -180,15 +177,8 @@ def main(task_name: str):
         text = episode_texts.get(anno_ind_all, "open cabinet pretrain")
 
         n_orig = len(action_all)
-        # 均匀采样到 NUM_FRAMES 帧的索引
-        if n_orig >= NUM_FRAMES:
-            frame_indices = np.linspace(0, n_orig - 1, NUM_FRAMES, dtype=int)
-        else:
-            # 不足 NUM_FRAMES 时用最后一帧填充
-            frame_indices = np.concatenate([
-                np.arange(n_orig),
-                np.full(NUM_FRAMES - n_orig, n_orig - 1),
-            ])
+        # 直接取全长，不做时间下采样
+        frame_indices = np.arange(n_orig)
 
         actions = action_all[frame_indices]
         states = states_all[frame_indices]
@@ -219,7 +209,7 @@ def main(task_name: str):
             )
             videos_info.append({"video_path": str(video_rel_path)})
 
-            # 读取视频并 uniform 采样到 NUM_FRAMES
+            # 读取视频，取全长
             video_abs_path = (
                 video_root / chunk_name / cam_key / f"{episode_stem}.mp4"
             )
@@ -232,7 +222,7 @@ def main(task_name: str):
 
             frames = np.array(frames).astype(np.uint8)
 
-            # 与 states/actions 一致的 uniform 采样到 NUM_FRAMES 帧
+            # 与 states/actions 一致，取全长
             frames = frames[frame_indices]
 
             # 编码为 latent

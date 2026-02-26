@@ -11,7 +11,7 @@ Expected output format (see `evaluate_robocasa.py`):
         "task_name": "CloseBlenderLid",
         "dataset_dir": "data_raw/v1.0/pretrain/atomic/CloseBlenderLid/20250822/lerobot",
         "episode_id": 18,
-            "distribution": "train",
+        "distribution": "train",
     },
     ...
 ]

@@ -108,7 +108,7 @@ def main():
     parser.add_argument("--dataset_names", type=str, default="OpenCabinet", help="Task dirs, '+' separated (e.g. OpenCabinet+CloseDrawer).")
     parser.add_argument("--out_dir", type=str, default="data/annotation_all", help="Output dir for train_all.json, val_all.json, *data.json.")
     parser.add_argument("--sequence_length", type=int, default=8, help="Frames per clip (act_seq_len).")
-    parser.add_argument("--sequence_interval", type=int, default=2, help="Frame step within a clip.")
+    parser.add_argument("--sequence_interval", type=int, default=1, help="Frame step within a clip.")
     parser.add_argument("--start_interval", type=int, default=1, help="Step between clip start frames.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for shuffling.")
     parser.add_argument("--num_workers", type=int, default=8, help="Parallel workers for scanning ann files.")

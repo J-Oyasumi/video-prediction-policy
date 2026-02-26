@@ -2,17 +2,16 @@
 
 
 tasks=(
-    "OpenCabinet" 
     "CloseBlenderLid"
-    "CloseDrawer"
+    "CloseToasterOvenDoor"
+    "OpenCabinet"
     "OpenDrawer"
     "PickPlaceCounterToCabinet"
-    "PickPlaceStoveToCounter"
+    "PickPlaceCounterToStove"
+    "PickPlaceSinkToCounter"
     "SlideDishwasherRack"
-    "CloseCabinet"
-    "PickPlaceCabinetToCounter"
-    "PickPlaceCounterToSink"
-    "PickPlaceToasterToCounter"
+    "TurnOnElectricKettle"
+    "TurnOnSinkFaucet"
 )
 
 # concat tasks with +
@@ -24,6 +23,6 @@ python prepare_json_robocasa.py \
   --dataset_names "${tasks_str}" \
   --out_dir data/annotation_all \
   --sequence_length 8 \
-  --sequence_interval 2 \
+  --sequence_interval 1 \
   --start_interval 1
 

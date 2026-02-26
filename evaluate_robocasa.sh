@@ -10,10 +10,15 @@
 eval "$(conda shell.bash hook)"
 conda activate vpp
 
+
+process_action_mode="downsample"
+
 python evaluate_robocasa.py \
   --video_model_path outputs/svd/train_2026-02-23T06-50-24/checkpoint-33000 \
   --action_model_path logs/text_robocasa/runs/2026-02-24/10-50-41/robocasa/checkpoints/0034506_0.149465.pt \
   --clip_model_path weights/clip-vit-base-patch32 \
   --json_path outputs/eval/OpenCabinet/data.json \
-  --output_dir outputs/eval/OpenCabinet/replay \
+  --output_dir outputs/eval/OpenCabinet/${process_action_mode} \
   --replay \
+  --process_action_mode ${process_action_mode} \
+  --process_action_interpolate_mode B-Spline

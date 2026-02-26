@@ -108,3 +108,5 @@ action_model_path: ???
 json_path: ???
 output_dir: ???
 replay: False
+process_action_mode: None
+process_action_interpolate_mode: B-Spline

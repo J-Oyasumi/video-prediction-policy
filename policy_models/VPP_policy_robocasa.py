@@ -261,10 +261,8 @@ class VPP_Policy(nn.Module):#pl.LightningModule):
             ad = self.action_dim
             for i in range(action_pred.shape[0]):
                 print("data info", dataset_batch["ann_file"][i], frame_ids[:, i])
-                print("true_action:", dataset_batch["actions"][i][:4, : min(7, ad)].flatten())
-                print("pred_action:", action_pred[i][:4, : min(7, ad)].flatten())
-                print("true_hand:", dataset_batch["actions"][i][:1, 7:ad].flatten())
-                print("pred_hand:", action_pred[i][:1, 7:ad].flatten())
+                print("true_action:", dataset_batch["actions"][i][:4,].flatten())
+                print("pred_action:", action_pred[i][:4].flatten())
                 print("-----------------------------------------------")
         return output
 
@@ -275,8 +273,6 @@ class VPP_Policy(nn.Module):#pl.LightningModule):
         # 1. extract the revelant visual observations
         rgb_static = dataset_batch["rgb_obs"]['rgb_static'].to(self.device)
         rgb_gripper = dataset_batch["rgb_obs"]['rgb_gripper'].to(self.device)
-        if 'rgb_gripper2' in dataset_batch["rgb_obs"]:
-            rgb_gripper2 = dataset_batch["rgb_obs"]['rgb_gripper2'].to(self.device)
         # 3. we compute the language goal if the language modality is in the scope
         modality = "lang"
 
@@ -290,36 +286,22 @@ class VPP_Policy(nn.Module):#pl.LightningModule):
 
         batch = rgb_static.shape[0]
 
-        if 'rgb_gripper2' not in dataset_batch["rgb_obs"]:
-            with torch.no_grad():
-                input_rgb = torch.cat([rgb_static, rgb_gripper], dim=0)
-                language = language + language
-                # print("input_rgb_shape:", input_rgb.shape)
-                # print("language_shape:", len(language))
-                perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                                                            self.extract_layer_idx)
-                # perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                #                                                self.extract_layer_idx, all_layer=self.use_all_layer,
-                #                                                step_time=1)
+        with torch.no_grad():
+            input_rgb = torch.cat([rgb_static, rgb_gripper], dim=0)
+            language = language + language
+            # print("input_rgb_shape:", input_rgb.shape)
+            # print("language_shape:", len(language))
+            perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
+                                                        self.extract_layer_idx)
+            # perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
+            #                                                self.extract_layer_idx, all_layer=self.use_all_layer,
+            #                                                step_time=1)
 
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
+        perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
+        perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
 
-            perceptual_features, gripper_feature = torch.split(perceptual_features, [batch, batch], dim=0)
-            perceptual_features = torch.cat([perceptual_features, gripper_feature], dim=2)
-        
-        else:
-            with torch.no_grad():
-                input_rgb = torch.cat([rgb_static, rgb_gripper, rgb_gripper2], dim=0)
-                language = language + language + language
-                perceptual_features = self.TVP_encoder(input_rgb, language, self.timestep,
-                                                            self.extract_layer_idx)
-
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c h w-> b f c (h w)')
-            perceptual_features = einops.rearrange(perceptual_features, 'b f c l-> b f l c')
-
-            perceptual_features, gripper_feature1, gripper_feature2 = torch.split(perceptual_features, [batch, batch, batch], dim=0)
-            perceptual_features = torch.cat([perceptual_features, gripper_feature1, gripper_feature2], dim=2)
+        perceptual_features, gripper_feature = torch.split(perceptual_features, [batch, batch], dim=0)
+        perceptual_features = torch.cat([perceptual_features, gripper_feature], dim=2)
 
 
         perceptual_features = perceptual_features.to(torch.float32)
@@ -327,8 +309,7 @@ class VPP_Policy(nn.Module):#pl.LightningModule):
 
         predictive_feature = {'state_images': perceptual_features}
         predictive_feature['modality'] = modality
-        if 'state_obs' in dataset_batch.keys():
-            predictive_feature['state_obs'] = dataset_batch['state_obs'].to(self.device)
+        predictive_feature['state_obs'] = dataset_batch['state_obs'].to(self.device)
 
         return predictive_feature, latent_goal
 
