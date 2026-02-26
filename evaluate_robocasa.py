@@ -36,7 +36,7 @@ import numpy as np
 from pathlib import Path
 import robosuite
 import robocasa
-import robocasa.utils.lerobot_utils as LU, get_episode_actions
+import robocasa.utils.lerobot_utils as LU
 from robocasa.scripts.dataset_scripts.playback_dataset import reset_to
 import imageio as iio
 from rich import print
@@ -188,22 +188,31 @@ def main(cfg):
         
         if cfg.replay:
             print("Replay Ground truth actions")
-            gt_actions = get_episode_actions(dataset_dir, episode_id)
+            gt_actions = LU.get_episode_actions(dataset_dir, episode_id)
+            gt_actions = LU.reorder_hdf5_action(gt_actions, LU.get_modality_dict(dataset_dir))
             print("Ground truth actions Shape:", gt_actions.shape)
+            success = False
             for action in tqdm(gt_actions, desc="Replaying Ground truth actions"):
-                for _ in range(10):
-                    _, _, _, _, info = env.step(action)
-                    frame = []
-                    for camera in CAMERAS:
-                        image = env.sim.render(
-                            height=480, width=480, camera_name=camera
-                        )[::-1]
-                        frame.append(image)
-                    frame = np.concatenate(frame, axis=1)
-                    video_writer.append_data(frame)
+                action = convert_action(action)
+                _, _, _, _, info = env.step(action)
+                frame = []
+                for camera in CAMERAS:
+                    image = env.sim.render(
+                        height=480, width=480, camera_name=camera
+                    )[::-1]
+                    frame.append(image)
+                frame = np.concatenate(frame, axis=1)
+                video_writer.append_data(frame)
+                if info['success']:
+                    success = True
+                    break
+            if success:
+                print(f"[bold green]Success! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
+            else:
+                print(f"[bold red]Fail! Task: {task_name} Episode: {episode_id} Distribution: {distribution} [/bold green]")
             video_writer.close()
             del video_writer
-            return
+            continue
         
         # Start Rollout
         lang = LU.get_episode_meta(dataset_dir, episode_id)['lang']
