@@ -20,6 +20,7 @@ tasks=(
     "PickPlaceCounterToCabinet"
     "PickPlaceCounterToStove"
     "PickPlaceSinkToCounter"
+    "PickPlaceToasterToCounter"
     "SlideDishwasherRack"
     "TurnOnElectricKettle"
     "TurnOnSinkFaucet"

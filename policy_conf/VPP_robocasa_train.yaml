@@ -27,7 +27,7 @@ root_data_dir: /storage/data/task_ABC_D
 lang_folder: lang_clip_resnet50
 clip_lang_model_name: ViT-B/32
 
-log_dir: ./logs/text_robocasa
+log_dir: ./outputs/action_model
 uuid: test_robocasa
 slurm: false
 devices: 1  # override via CLI for multi-GPU, e.g. devices=2

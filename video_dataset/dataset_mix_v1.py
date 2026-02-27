@@ -159,8 +159,8 @@ class Dataset_mix(Dataset):
                 sequence_interval = 5
                 start_interval = 5
             else:
-                sequence_interval = 2
-                start_interval = 2
+                sequence_interval = 1
+                start_interval = 4
             # record idx for each clip
             base_idx = np.arange(0,self.sequence_length)*sequence_interval
             max_idx = np.ones_like(base_idx)*(n_frames-1)

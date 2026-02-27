@@ -21,8 +21,8 @@ train_args:
   # dataset: 'sthv2+bridge+rt1+calvin'
   # prob: [0.4,0.2,0.2,0.2]
 
-  dataset: 'OpenCabinet+CloseBlenderLid+CloseDrawer+OpenDrawer+PickPlaceCounterToCabinet+PickPlaceStoveToCounter+SlideDishwasherRack+CloseCabinet+PickPlaceCabinetToCounter+PickPlaceCounterToSink+PickPlaceToasterToCounter'
-  prob: [0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08]
+  dataset: 'CloseBlenderLid+CloseToasterOvenDoor+OpenCabinet+OpenDrawer+PickPlaceCounterToCabinet+PickPlaceCounterToStove+PickPlaceSinkToCounter+PickPlaceToasterToCounter+SlideDishwasherRack+TurnOnElectricKettle+TurnOnSinkFaucet'
+  prob: [0.1,0.09,0.09,0.09,0.09,0.09,0.09,0.09,0.09,0.09,0.09]
 
   tie_weight: True
   normalize: True
@@ -190,13 +190,13 @@ extra_text_encoder_params: null
 # How many batches to train. Not to be confused with video frames.
 train_batch_size: 20
 # Maximum number of train steps. Model is saved after training.
-max_train_steps: 10000
+max_train_steps: 50000
 
 # Saves a model every nth step.
-checkpointing_steps: 1000
+checkpointing_steps: 2000
 
 # How many steps to do for validation if sample_preview is enabled.
-validation_steps: 500
+validation_steps: 1000
 
 # Which modules we want to unfreeze for the UNET. Advanced usage.
 trainable_modules:
